@@ -4,12 +4,12 @@
 
 This blogpost explains how to avoid using Kubernetes [Secrets](https://kubernetes.io/docs/concepts/configuration/secret) in order to store Istio Certificates. By default secrets are stored in etcd using Base64 encoding, so additional security measures are needed to protect them. One such solution includes storing secrets in an external secret store provider. We will explain how to bootstrap Istio leveraging the `vault-agent-init` container to inject certificates and private key material. This avoids the dependency on Secrets to bootstrap the istio control plane. Exactly the same technique can be used for ingress and egress certificates.
 
-More information on how certificates are used and managed with Istio, can be found in the official documentation:
+More information on how certificates are used and managed within Istio, can be found in the official documentation:
  - [Identity and certificate management](https://istio.io/latest/docs/concepts/security/#pki)
  - [Plug in CA Certificates](https://istio.io/latest/docs/tasks/security/cert-management/plugin-ca-cert)
  - [Custom CA Integration using Kubernetes CSR](https://istio.io/latest/docs/tasks/security/cert-management/custom-ca-k8s)
 
-For best practices based on real-life production scenario's, also check out the folling [Tetrate](https://tetrate.io) blogposts:
+For best practices based on real-life production experience, also check out the folling [Tetrate](https://tetrate.io) blogposts:
  - [Trusting trust: Root Istio’s trust in your existing PKI](https://tetrate.io/blog/istio-trust)
  - [Automate Istio CA rotation in production at scale](https://tetrate.io/blog/automate-istio-ca-rotation-in-production-at-scale)
 
