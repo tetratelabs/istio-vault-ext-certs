@@ -1,4 +1,4 @@
-# Vaulted Istio Certificates and Private Keys
+# Vaulted Istio Certificates
 
 ## Introduction
 
