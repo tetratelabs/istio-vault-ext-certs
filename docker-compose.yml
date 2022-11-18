@@ -1,0 +1,125 @@
+version: '3.7'
+
+services:
+  vault:
+    image: vault:1.11.5
+    container_name: vault
+    cap_add:
+      - IPC_LOCK
+    # env_file:
+    #   - .env
+    environment:
+      VAULT_ADDR: http://0.0.0.0:8200
+      VAULT_DEV_ROOT_TOKEN_ID: root
+      VAULT_LOCAL_CONFIG: '{ "ui": true }'
+      VAULT_LOG_LEVEL: debug
+    volumes:
+      - ./certs:/certs  # This is just so that we can mount the actual PEM encoded certs/keys
+    ports:
+      - 8200:8200  # Vault Admin UI
+    networks:
+      - demo
+
+  k3s-server-1:
+    image: "rancher/k3s:v1.24.7-k3s1" # https://hub.docker.com/r/rancher/k3s/tags
+    container_name: k3s-server-1
+    command: server --https-listen-port 16443 --disable traefik --disable metrics-server
+    tmpfs:
+      - /run
+      - /var/run
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    privileged: true
+    restart: always
+    environment:
+      - K3S_TOKEN=0123456789
+      - K3S_KUBECONFIG_OUTPUT=/output/kubecfg1.yml
+      - K3S_KUBECONFIG_MODE=666
+    volumes:
+      - k3s-server-1:/var/lib/rancher/k3s
+      - .:/output  # This is just so that we get the kubecfg1.yml file out
+    ports:
+      - 16443:16443  # Kubernetes API Server
+    networks:
+      - demo
+
+  k3s-agent-1a:
+    image: "rancher/k3s:v1.24.7-k3s1"
+    container_name: k3s-agent-1a
+    tmpfs:
+      - /run
+      - /var/run
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    privileged: true
+    restart: always
+    environment:
+      - K3S_URL=https://k3s-server-1:16443
+      - K3S_TOKEN=0123456789
+    networks:
+      - demo
+    depends_on:
+      - k3s-server-1
+
+  k3s-server-2:
+    image: "rancher/k3s:v1.24.7-k3s1" # https://hub.docker.com/r/rancher/k3s/tags
+    container_name: k3s-server-2
+    command: server --https-listen-port 26443 --disable traefik --disable metrics-server
+    tmpfs:
+      - /run
+      - /var/run
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    privileged: true
+    restart: always
+    environment:
+      - K3S_TOKEN=9876543210
+      - K3S_KUBECONFIG_OUTPUT=/output/kubecfg2.yml
+      - K3S_KUBECONFIG_MODE=666
+    volumes:
+      - k3s-server-2:/var/lib/rancher/k3s
+      - .:/output  # This is just so that we get the kubecfg2.yml file out
+    ports:
+      - 26443:26443  # Kubernetes API Server
+    networks:
+      - demo
+
+  k3s-agent-2a:
+    image: "rancher/k3s:v1.24.7-k3s1"
+    container_name: k3s-agent-2a
+    tmpfs:
+      - /run
+      - /var/run
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    privileged: true
+    restart: always
+    environment:
+      - K3S_URL=https://k3s-server-2:26443
+      - K3S_TOKEN=9876543210
+    networks:
+      - demo
+    depends_on:
+      - k3s-server-2
+
+volumes:
+  k3s-server-1:
+    name: k3s-server-1
+  k3s-server-2:
+    name: k3s-server-2
+
+networks:
+  demo:
+    name: demo

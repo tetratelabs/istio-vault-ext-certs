@@ -1,0 +1,28 @@
+pilot:
+  env:
+    ROOT_CA_DIR: /vault/secrets
+  podAnnotations:
+    vault.hashicorp.com/agent-inject: "true"
+    vault.hashicorp.com/agent-init-first: "true"
+    vault.hashicorp.com/agent-inject-secret-ca-key.pem: "kubernetes-cluster1-secrets/istiod-service/certs"
+    vault.hashicorp.com/agent-inject-template-ca-key.pem: |
+        {{- with secret "kubernetes-cluster1-secrets/istiod-service/certs" -}}
+        {{ .Data.ca_key }}
+        {{ end -}}
+    vault.hashicorp.com/agent-inject-secret-ca-cert.pem: "kubernetes-cluster1-secrets/istiod-service/certs"
+    vault.hashicorp.com/agent-inject-template-ca-cert.pem: |
+        {{- with secret "kubernetes-cluster1-secrets/istiod-service/certs" -}}
+        {{ .Data.ca_cert }}
+        {{ end -}}
+    vault.hashicorp.com/agent-inject-secret-root-cert.pem: "kubernetes-cluster1-secrets/istiod-service/certs"
+    vault.hashicorp.com/agent-inject-template-root-cert.pem: |
+        {{- with secret "kubernetes-cluster1-secrets/istiod-service/certs" -}}
+        {{ .Data.root_cert }}
+        {{ end -}}
+    vault.hashicorp.com/agent-inject-secret-cert-chain.pem: "kubernetes-cluster1-secrets/istiod-service/certs"
+    vault.hashicorp.com/agent-inject-template-cert-chain.pem: |
+        {{- with secret "kubernetes-cluster1-secrets/istiod-service/certs" -}}
+        {{ .Data.cert_chain }}
+        {{ end -}}
+    vault.hashicorp.com/role: "istiod"
+    vault.hashicorp.com/auth-path: "auth/kubernetes-cluster1"
