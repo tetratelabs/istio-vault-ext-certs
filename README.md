@@ -19,7 +19,7 @@ For best practices based on real-life production experience, also check out the 
  - [Automate Istio CA rotation in production at scale](https://tetrate.io/blog/automate-istio-ca-rotation-in-production-at-scale)
 
 
-The code accompanying this blog post can be found at:
+The code accompanying this blog post can be found at the following repository:
 > https://github.com/tetratelabs/istio-vault-ext-certs
 
 </br>
@@ -82,9 +82,9 @@ As to storage of our certificate and private key material we have 2 options:
  - [PKI Secrets Engine](https://developer.hashicorp.com/vault/docs/secrets/pki)
  - [KV Secrets Engine](https://developer.hashicorp.com/vault/docs/secrets/kv)
 
-Because the PKI secret engine does not provide clean-cut APIs to retrieve the certificates and the private key we need, and because the PKI secret engine will generate a new intermediate certificate for every call (eg every `istiod` restart), we wil be using the generic KV secret engine instead, storing all the values we need in a simple key-value data structure. We will assume the renewal of intermediate certificates is handled out-of-band through some service portal or CI/CD process, that will store the renewed intermediate certificates in vault as well.
+Because the PKI secret engine does not provide clean-cut APIs to retrieve the certificates and the private key we need, and because the PKI secret engine will generate a new intermediate certificate for every call (eg every `istiod` restart), we will be using the generic KV secret engine instead, storing all the values we need in a simple key-value data structure. We will assume the renewal of intermediate certificates is handled out-of-band through some service portal or CI/CD process that will store the renewed intermediate certificates in the vault server as well.
 
-Istio's controlplane pods `istiod` need the following files in order to bootstrap its build in CA correctly.
+Istio's controlplane pods need the following files in order to bootstrap its build in CA correctly.
 
 | key | value (PEM encoded) | details |
 |-----|---------------------|---------|
@@ -106,7 +106,7 @@ Prerequisites in terms of installed software, if you want to follow the local se
  - `helm` to install vault injector and istio charts ([download](https://helm.sh/docs/intro/install))
  - `vault` cli tool to configure the vault server ([download](https://developer.hashicorp.com/vault/tutorials/getting-started/getting-started-install#install-vault))
 
-If you want a local demo environment, please follow the instructions [here](local-setup.md), which use `docker-compose` to spin up a vault server and two seperate k3s clusters. In case you bring your own kubernetes clusters and externally hosted vault instance, skip ahead to the next section. 
+If you want a local demo environment, please follow the instructions [here](local-setup.md), which use `docker-compose` to spin up a vault server and two separate k3s clusters. In case you bring your own kubernetes clusters and an externally hosted vault instance, skip ahead to the next section. 
 
  - `docker-compose` to spin-up a local environment ([download](https://github.com/docker/compose/releases))
 
