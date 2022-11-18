@@ -1,27 +1,36 @@
 # Vaulted Istio Certificates
 
+
 ## Introduction
 
-This blogpost explains how to avoid using Kubernetes [Secrets](https://kubernetes.io/docs/concepts/configuration/secret) in order to store Istio Certificates. By default secrets are stored in etcd using Base64 encoding, so additional security measures are needed to protect them. One such solution includes storing secrets in an external secret store provider. We will explain how to bootstrap Istio leveraging the `vault-agent-init` container to inject certificates and private key material. This avoids the dependency on Secrets to bootstrap the istio control plane. Exactly the same technique can be used for ingress and egress certificates.
+This walkthrough explores how to avoid using Kubernetes [Secrets](https://kubernetes.io/docs/concepts/configuration/secret) in order to store Istio Certificates. By default, secrets are stored in etcd using base64 encoding. In environments with stringent security policies, this might not be acceptable, so additional security measures are needed to protect them. One such solution includes storing secrets in an external secret store provider, like [HashiCorp Vault](https://www.vaultproject.io).
+
+HashiCorp Vault can be hosted both inside and outside a kubernetes cluster. In this case, we will explore the use case where Vault is hosted outside kubernetes, so that it could actually provision secrets to multiple clusters at once. The set-up that we will build here, is thereby also an ideal upstep to explore istio's [multi-cluster feature](https://istio.io/latest/docs/setup/install/multicluster), which requires a shared trust domain.
+
+Leveraging the `vault-agent-init` container, we can inject certificates and private key material into the actual istio control plane pods, so they are bootstrapped with the external CA certificates. This avoids the dependency on Secrets to bootstrap the istio control plane. Exactly the same technique can be used for ingress and egress certificates.
 
 More information on how certificates are used and managed within Istio, can be found in the official documentation:
  - [Identity and certificate management](https://istio.io/latest/docs/concepts/security/#pki)
  - [Plug in CA Certificates](https://istio.io/latest/docs/tasks/security/cert-management/plugin-ca-cert)
  - [Custom CA Integration using Kubernetes CSR](https://istio.io/latest/docs/tasks/security/cert-management/custom-ca-k8s)
 
-For best practices based on real-life production experience, also check out the folling [Tetrate](https://tetrate.io) blogposts:
+For best practices based on real-life production experience, also check out the following [Tetrate](https://tetrate.io) blog posts:
  - [Trusting trust: Root Istio’s trust in your existing PKI](https://tetrate.io/blog/istio-trust)
  - [Automate Istio CA rotation in production at scale](https://tetrate.io/blog/automate-istio-ca-rotation-in-production-at-scale)
+
+
+The code accompanying this blog post can be found at:
+> https://github.com/tetratelabs/istio-vault-ext-certs
 
 </br>
 
 ### Istiod certificate handling
 
-Although some of the decision logic is explained in the forementioned blogposts, it is good to also take a peak in the [source code](https://github.com/istio/istio/blob/master/pilot/pkg/bootstrap/istio_ca.go) to find some undocumented behavior. 
+Although some of the decision logic is explained in the forementioned blogposts, it is worthwhile to also refer to the [source code](https://github.com/istio/istio/blob/master/pilot/pkg/bootstrap/istio_ca.go) to find some undocumented behavior.
 
 
 ```go
-// From istio/pilot/pkg/bootstrap/istio_ca.go
+// istio/pilot/pkg/bootstrap/istio_ca.go
 //
 // For backward compat, will preserve support for the "cacerts" Secret used for self-signed certificates.
 // It is mounted in the same location, and if found will be used - creating the secret is sufficient, no need for
@@ -33,7 +42,7 @@ Although some of the decision logic is explained in the forementioned blogposts,
 //
 // Default config, for backward compat with Citadel:
 // - if "cacerts" secret exists in istio-system, will be mounted. It may contain an optional "root-cert.pem",
-// with additional roots and optional {ca-key, ca-cert, cert-chain}.pem user-provided root CA.
+//   with additional roots and optional {ca-key, ca-cert, cert-chain}.pem user-provided root CA.
 // - if user-provided root CA is not found, the Secret "istio-ca-secret" is used, with ca-cert.pem and ca-key.pem files.
 // - if neither is found, istio-ca-secret will be created.
 // - a config map "istio-security" with a "caTLSRootCert" file will be used for root cert, and created if needed.
@@ -42,7 +51,7 @@ Although some of the decision logic is explained in the forementioned blogposts,
 //   K8S root.
 ```
 
-Another feature we will leverage is an environment variable (documented [here](https://istio.io/latest/docs/reference/commands/pilot-discovery)) for `istio-pilot` (aka `istiod`), so certificates will be picked up from an alternative location within the Kubernetes POD. This is needed because the `vault-agent-init` injection container will create a new mounted volume `/vault/secrets` to drop the certificates and private key we instrument it to pull from the external vault server. 
+In order to instruct istio to pick up our certificates elsewhere compared to the standard kubernetes secrets, we will leverage an environment variable (documented [here](https://istio.io/latest/docs/reference/commands/pilot-discovery)) for `istio-pilot` (aka `istiod` or the istio control plane), so certificates will be picked up from an alternative location within the Kubernetes POD. This is needed because the `vault-agent-init` injection container will create a new mounted volume `/vault/secrets` to drop the certificates and private key we instrument it to pull from the external vault server. 
 
 | Variable Name | Type   | Default Value | Description                            |
 |---------------|--------|---------------|----------------------------------------|
@@ -111,7 +120,7 @@ export K8S_API_SERVER_2=<kubernetes cluster2 apiserver>
 
 ### Vault kubernetes auth backend
 
-As mentioned in the introduction section on [vault server considerations](#vault-server-considerations), we will be using the [kubernetes auth backend](https://developer.hashicorp.com/vault/docs/auth/kubernetes). Since `istiod` will be fetching the certificates and private key material from vault, let's first create the corresponding service accounts in both cluster.
+As mentioned in the introduction section on [vault server considerations](#vault-server-considerations), we will be using the [kubernetes auth backend](https://developer.hashicorp.com/vault/docs/auth/kubernetes). Since `istiod` will be fetching the certificates and private key material from the vault server, let's start off by creating the corresponding service accounts in both clusters.
 
 ```console
 kubectl --kubeconfig kubecfg1.yml create ns istio-system
@@ -172,9 +181,9 @@ kubectl --kubeconfig kubecfg2.yml get secret -n istio-system istiod -o go-templa
 kubectl --kubeconfig kubecfg2.yml config view --raw --minify --flatten -o jsonpath="{.clusters[].cluster.certificate-authority-data}" | base64 --decode > output/k8sapi-cert2.pem
 ```
 
-More information on the detailed content of the kubernetes API certificate and the `istiod` ServiceAccount JWT token can be found [here](output), where we also describe to vault interaction process in more depth in terms of REST API calls made to authenticate and fetch secrets.
+More information on the detailed content of the kubernetes API certificate and the `istiod` ServiceAccount JWT token can be found [here](output), where we also describe the vault interaction process in more depth in terms of REST API calls made to authenticate and fetch secrets. These can come in handy when debugging permission denied issues.
 
-Let's now create the necessary vault configuration based on this.
+Let's create the necessary vault auth configuration based on the kubernetes CA certs and JWT tokens just retrieved.
 
 ```console
 export VAULT_ADDR=http://localhost:8200
@@ -209,7 +218,7 @@ make -f ../certs-gen/Makefile.selfsigned.mk istiod-cluster2-cacerts
 cd ..
 ```
 
-More details on the actual content and the X509v3 extensions being set, can be found [here](certs). You can fine-tune the certificate generation, by the `Makefile` documentation [here](certs-gen) and correspondig `Makefile` override values.
+More details on the actual content and the X509v3 extensions being set, can be found [here](certs). You can fine-tune the certificate generation, by the `Makefile` documentation [here](certs-gen) and corresponding `Makefile` override values.
 
 Let's add the generated certificates and private key into vault kv secrets.
 
@@ -255,7 +264,7 @@ vault write auth/kubernetes-cluster2/role/istiod \
 
 ### Deploy vault-injector and istio helm charts
 
-In order to deploy the vault injector, we will be leveraging the official [helm charts](https://github.com/hashicorp/vault-helm) for vault.
+In order to deploy the vault injector, we will be leveraging the official vault [helm charts](https://github.com/hashicorp/vault-helm).
 
 ```console
 helm repo add hashicorp https://helm.releases.hashicorp.com
@@ -404,6 +413,6 @@ In this blog we have successfully bootstrapped the istio control plane with exte
     - using the right role and auth backend to do so
     - pickup the certificates and private key from the correct vault secret mount path
 
-We can use exaclty the same technique to inject `ingress-gateway` and `egress-gateway` certificates. When creating istio [Gateway](https://istio.io/latest/docs/reference/config/networking/gateway/#ServerTLSSettings) objects, make sure to point `serverCertificate`, `privateKey` and `caCertificates` to the correct files within the `/vault/secrets` mounted volume. We'll leave this as an exercise for the reader.
+We can use exactly the same technique to inject `ingress-gateway` and `egress-gateway` certificates. When creating istio [Gateway](https://istio.io/latest/docs/reference/config/networking/gateway/#ServerTLSSettings) objects, make sure to point `serverCertificate`, `privateKey` and `caCertificates` to the correct files within the `/vault/secrets` mounted volume. We'll leave this as an exercise for the reader.
 
 By tying our certificate injection to kubernetes ServiceAccount, we have now delegated certificate lifecycle management to an external secret vault. External processes, like a service portal or a CI/CD pipeline, can now be created with dedicated roles and write/update policies, to provide the necessary certificate life-cycle management security.
