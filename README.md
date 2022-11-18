@@ -46,7 +46,7 @@ Another feature we will leverage is an environment variable (documented [here](h
 
 | Variable Name | Type   | Default Value | Description                            |
 |---------------|--------|---------------|----------------------------------------|
-| ROOT_CA_DIR	  | String | /etc/cacerts  | Location of a local or mounted CA root |
+| `ROOT_CA_DIR` | String | /etc/cacerts  | Location of a local or mounted CA root |
 
 </br>
 
